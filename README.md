@@ -2,6 +2,34 @@
 
 A production-quality Python CLI for placing orders on **Binance Futures Testnet** (USDT-M).
 
+### What Is This?
+
+This is a command-line trading bot that allows you to place market and limit orders on Binance Futures Testnet. It's perfect for:
+- 🧪 Testing trading strategies without real money
+- 📚 Learning how to interact with the Binance API
+- 🔧 Developing and debugging trading algorithms
+- ⚡ Automating repetitive order placement tasks
+
+Built with production-grade code quality: type hints, comprehensive logging, input validation, error handling, and security best practices.
+
+## 📑 Table of Contents
+
+- [Features](#features)
+- [Quick Start](#quick-start)
+- [Installation](#installation)
+- [Usage](#usage)
+- [Input Validation](#input-validation)
+- [Examples](#examples)
+- [Test Commands](#test-commands)
+- [Logging](#logging)
+- [Design Decisions](#design-decisions)
+- [Exit Codes](#exit-codes)
+- [Extensibility](#extensibility)
+- [Code Quality](#code-quality--production-readiness)
+- [Error Handling](#error-handling)
+- [Troubleshooting](#troubleshooting)
+- [Documentation](#documentation)
+
 ## Features
 
 - [x] **Market Orders** - Instant execution at current market price
@@ -15,7 +43,7 @@ A production-quality Python CLI for placing orders on **Binance Futures Testnet*
 - [x] **Error Handling** - Comprehensive exception handling and recovery
 - [x] **Secret Redaction** - Automatically masks API keys in logs
 - [x] **Live Symbol Validation** - Validates symbols against Binance API
-- [x] **Reproducible Installs** - requirements.lock for exact versions
+- [x] **Production-Ready Code** - Type hints, docstrings, and best practices
 
 ## Architecture Diagram
 
@@ -82,34 +110,60 @@ sequenceDiagram
 ## Project Structure
 
 ```
-trading_bot/
+Trade_bot/
 ├── bot/
 │   ├── __init__.py              # Package initialization
 │   ├── cli.py                   # CLI interface with argparse
 │   ├── client.py                # Binance Futures Testnet wrapper
 │   ├── orders.py                # Order placement logic
 │   ├── validators.py            # Input validation
+│   ├── symbol_validator.py      # Live symbol validation
 │   ├── config.py                # Centralized configuration
 │   ├── logging_config.py        # Logging setup
-│   ├── logging_filter.py        # Secret redaction
-│   └── symbol_validator.py      # Live symbol validation
+│   └── logging_filter.py        # Secret redaction
 ├── docs/
-│   ├── ARCHITECTURE.md          # Technical architecture
-│   ├── DEPLOYMENT.md            # Deployment guide
-│   ├── TESTING.md               # Testing procedures
-│   ├── PERFORMANCE.md           # Performance tuning
-│   ├── ENHANCEMENTS.md          # Optional features
-│   └── CONTRIBUTING.md          # Contributing guide
+│   └── ARCHITECTURE.md          # Technical architecture & design
 ├── logs/
 │   └── bot.log                  # Log file (auto-created)
-├── cli.py                       # Entry point
+├── cli.py                       # Entry point script
 ├── .env                         # API credentials (not in git)
 ├── requirements.txt             # Python dependencies
-├── requirements.lock            # Exact versions (production)
 └── README.md                    # This file
 ```
 
+## Quick Start
+
+**1. Install dependencies:**
+```bash
+pip install -r requirements.txt
+```
+
+**2. Configure API credentials in `.env`:**
+```
+API_KEY=your_testnet_api_key
+API_SECRET=your_testnet_api_secret
+```
+Get testnet credentials from: https://testnet.binancefuture.com/en/usersCenter
+
+**3. Run the bot:**
+```bash
+# Interactive mode (recommended for first-time users)
+python cli.py place-order
+
+# Or direct CLI command
+python cli.py place-order --symbol BTCUSDT --side BUY --type MARKET --qty 0.01
+```
+
+Note: Make sure the virtual environment is activated first (see Installation section).
+
 ## Installation
+
+### System Requirements
+
+- **Python** 3.8 or higher
+- **pip** (Python package manager)
+- **Internet connection** (for Binance API access)
+- **Windows, macOS, or Linux**
 
 ### 1. Clone or navigate to project directory
 
@@ -346,9 +400,17 @@ python cli.py place-order
 Expected: Prompts for symbol, side, type, quantity, and price (if LIMIT)
 
 ### 10. View Logs
+
+**Windows:**
 ```bash
 Get-Content logs/bot.log -Tail 20
 ```
+
+**macOS/Linux:**
+```bash
+tail -f logs/bot.log
+```
+
 Expected: Recent log entries showing order attempts and API calls
 
 ## Logging
@@ -488,11 +550,11 @@ This project is built to production standards:
 - [x] **No Hardcoded Values** - All constants in `bot/config.py`
 - [x] **Request ID Tracking** - Unique ID per operation for debugging
 - [x] **Retry Logic** - Network resilience for failed API calls
-- [x] **Structured Logging** - Readable, queryable logs
+- [x] **Structured Logging** - Readable, queryable logs with rotation
 - [x] **Error Handling** - Graceful failure with clear messages
-- [x] **Exit Codes** - Standard codes for integration
-- [x] **Security** - No credentials in code or logs
-- [x] **Testing** - Comprehensive test commands provided
+- [x] **Exit Codes** - Standard codes for integration with other tools
+- [x] **Secret Management** - No credentials in code or logs
+- [x] **Testing Commands** - Comprehensive test commands provided
 
 ---
 
@@ -500,17 +562,24 @@ This project is built to production standards:
 
 This bot is configured for **Binance Futures Testnet**:
 - Base URL: `https://testnet.binancefuture.com`
-- **NO real funds used**
-- Perfect for testing and development
-- Credentials separate from mainnet
+- **NO real funds used** - Safe for testing and development
+- Perfect for learning and testing order placement logic
+- Credentials kept separate from mainnet
 
-To use **Mainnet** (real trading):
-1. Get mainnet API keys from https://www.binance.com
-2. Modify `bot/client.py` line:
+To use **Mainnet** (real trading with actual funds):
+1. Get mainnet API keys from https://www.binance.com (not testnet)
+2. Modify `bot/client.py` and set `testnet=False`:
    ```python
-   base_url="https://fapi.binance.com"  # Change from testnet
+   self.client = Client(
+       api_key=api_key,
+       api_secret=api_secret,
+       testnet=False  # Change from True
+   )
    ```
-3. [WARNING] **BE CAREFUL** - Real money at risk
+3. Update `.env` with mainnet credentials
+4. **⚠️ CAUTION**: Real money at risk - test thoroughly before deploying
+
+> **Recommendation**: Always test on testnet first before attempting real trading.
 
 ## Error Handling
 
@@ -595,10 +664,6 @@ For issues with:
 
 ## Documentation
 
-Complete documentation available in [docs/](docs/) folder:
-- [ARCHITECTURE.md](docs/ARCHITECTURE.md) - System design and components
-- [DEPLOYMENT.md](docs/DEPLOYMENT.md) - Deployment instructions
-- [TESTING.md](docs/TESTING.md) - Test cases and procedures
-- [PERFORMANCE.md](docs/PERFORMANCE.md) - Performance tuning
-- [ENHANCEMENTS.md](docs/ENHANCEMENTS.md) - Optional features
-- [CONTRIBUTING.md](docs/CONTRIBUTING.md) - Contributing guidelines
+Complete architecture documentation available in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - includes system design, components, and data flow diagrams.
+
+For detailed information on setup, testing, and troubleshooting, see the sections below.
