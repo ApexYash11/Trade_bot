@@ -394,7 +394,7 @@ The architecture is designed for easy expansion:
 
 **Current:** Interactive, CLI arguments
 
-**To add:** Configuration files, configuration files, REST API server
+**To add:** Configuration files, REST API server
 
 **Implementation:**
 1. Add new input handler in `bot/cli.py`

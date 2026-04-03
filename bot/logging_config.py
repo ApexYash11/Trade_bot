@@ -14,7 +14,7 @@ def setup_logger(log_file: str = config.LOG_FILE_PATH) -> logging.Logger:
     Configure and return logger instance.
     
     Features:
-    - Rotating file handler (5MB limit, 5 backups)
+    - Rotating file handler (LOG_MAX_BYTES={} limit, LOG_BACKUP_COUNT={} backups)
     - No sensitive data logged
     - Structured format with timestamps
     - Separate console handler for errors only
@@ -24,9 +24,12 @@ def setup_logger(log_file: str = config.LOG_FILE_PATH) -> logging.Logger:
         
     Returns:
         Configured logger instance
-    """
+    """.format(config.LOG_MAX_BYTES, config.LOG_BACKUP_COUNT)
+    
     # Create logs directory if it doesn't exist
-    os.makedirs(os.path.dirname(log_file), exist_ok=True)
+    log_dir = os.path.dirname(log_file)
+    if log_dir:
+        os.makedirs(log_dir, exist_ok=True)
     
     logger = logging.getLogger(config.APP_NAME)
     logger.setLevel(logging.DEBUG)

@@ -68,7 +68,7 @@ def get_interactive_inputs() -> dict:
     
     # Get symbol
     while True:
-        symbol = input("Enter symbol (e.g., BTCUSDT): ").strip()
+        symbol = input("Enter symbol (e.g., BTCUSDT): ").strip().upper()
         if symbol:
             inputs['symbol'] = symbol
             break
@@ -207,9 +207,9 @@ def main():
             
             # Normalize inputs to uppercase
             inputs = {
-                'symbol': args.symbol.upper() if args.symbol else None,
-                'side': args.side.upper() if args.side else None,
-                'type': args.order_type.upper() if args.order_type else None,
+                'symbol': args.symbol.upper(),
+                'side': args.side.upper(),
+                'type': args.order_type.upper(),
                 'qty': args.qty,
                 'price': args.price
             }

@@ -159,8 +159,12 @@ Print ✅ success or ❌ error
 **Functions:**
 - `validate_symbol(symbol: str) → str`
   - Check format: must be string, non-empty
-  - Must end with "USDT"
+  - **Current limitation:** Only accepts symbols ending with "USDT" (e.g., BTCUSDT, ETHUSDT)
   - Returns uppercase symbol
+  - **Note:** Hardcoded to USDT for testnet scope. To support multiple quote currencies (BUSD, USDC, etc.):
+    1. Add `ACCEPTED_QUOTE_CURRENCIES = ["USDT", "BUSD", "USDC"]` to `config.py`
+    2. Update `validate_symbol()` to check against `config.ACCEPTED_QUOTE_CURRENCIES`
+    3. Optionally validate symbols against Binance API's trading pairs endpoint for live pair validation
 
 - `validate_side(side: str) → str`
   - Must be "BUY" or "SELL"
@@ -311,13 +315,18 @@ API_SECRET=your_binance_testnet_api_secret
 
 ### 8. **requirements.txt** (Dependencies)
 ```
-python-binance>=1.0.17    # Binance API wrapper
-python-dotenv>=1.0.0      # Environment variable management
+python-binance>=1.0.17,<2.0.0    # Binance API wrapper (fixed major version)
+python-dotenv>=1.0.0,<2.0.0      # Environment variable management
 ```
 
----
-
-## 🔄 Workflow Diagram
+**Dependency Management:**
+- Uses version pinning to prevent breaking changes
+- Recommended: Create a `requirements.lock` file for production deployments
+  ```bash
+  pip freeze > requirements.lock
+  ```
+- Lock file ensures reproducible installs across all environments
+- To upgrade: `pip install -U -r requirements.txt && pip freeze > requirements.lock`
 
 ### Complete Order Placement Flow
 
@@ -463,31 +472,71 @@ Result Dict
 
 ### Error Handling Strategy
 
-| Layer | Error Type | Handling | Result |
-|-------|-----------|----------|--------|
-| **CLI** | Missing args | Show help message | Exit 0 |
-| **Validators** | Invalid input | Raise ValueError | Show "❌ Order failed: ..." |
-| **OrderManager** | Validation error | Catch ValueError | Log error, show to user |
-| **Client** | API error | Catch BinanceAPIException | Show "API Error: ..." |
-| **Client** | Network error | Catch BinanceRequestException | Show "Network error: ..." |
-| **Client** | Unknown error | Catch Exception | Show "Error: ..." |
+| Layer | Error Type | Handled In | Action | Result |
+|-------|-----------|-----------|--------|--------|
+| **Bootstrap** | Missing .env file | `bot/config.py` (load time) | Validate API_KEY/API_SECRET present; raise RuntimeError | Fail fast with "Missing required environment variables: API_KEY, API_SECRET" |
+| **CLI** | Missing arguments | `bot/cli.py` (parse_args) | Check all([args.symbol, args.side, ...]) | Show help or raise ValueError |
+| **CLI** | Missing subcommand | `bot/cli.py` (main) | Check args.command | Show help and exit 0 |
+| **Validators** | Invalid symbol | `bot/validators.py.validate_symbol()` | Symbol must end with USDT | Raise ValueError("Symbol must end with USDT...") |
+| **Validators** | Invalid side (not BUY/SELL) | `bot/validators.py.validate_side()` | Check against ["BUY", "SELL"] | Raise ValueError("Side must be BUY or SELL") |
+| **Validators** | Invalid order type | `bot/validators.py.validate_order_type()` | Check against ["MARKET", "LIMIT"] | Raise ValueError("Order type must be MARKET or LIMIT") |
+| **Validators** | Invalid quantity | `bot/validators.py.validate_quantity()` | Must be positive float | Raise ValueError("Quantity must be positive") |
+| **Validators** | Missing price for LIMIT | `bot/validators.py.validate_price()` | LIMIT orders require price | Raise ValueError("Price is required for LIMIT orders") |
+| **OrderManager** | Validation fails | `bot/orders.py.place_order()` (try/except) | Catch ValueError from validators | Log error; re-raise to CLI |
+| **Client** | Authentication fails | `bot/client.py.create_order()` (try/except) | Catch BinanceAPIException [401] | Log "[req_id=X] Binance API Error [401]: ..."; raise Exception |
+| **Client** | Rate limiting | `bot/client.py._retry_api_call()` | Catch BinanceAPIException [429]; implement backoff | Retry up to MAX_RETRIES times with RETRY_DELAY between attempts; log warning |
+| **Client** | Network timeout | `bot/client.py._retry_api_call()` | Catch BinanceRequestException (network error) | Retry up to MAX_RETRIES times; log warning; eventually raise to caller |
+| **Client** | API validation error | `bot/client.py.create_order()` | Catch BinanceAPIException [400] | Log error; DO NOT retry (API error, not network) |
+| **CLI** | Order placement fails | `bot/cli.py.main()` (try/except) | Catch Exception from OrderManager | Print format_error_message(str(e)); exit 1 |
 
 ### Error Flow Example
 
+**Scenario 1: Missing price for LIMIT order**
 ```
-User enters invalid side: "INVALID"
+User enters: python cli.py place-order --symbol BTCUSDT --side BUY --type LIMIT --qty 0.01
     ↓
-cli.py calls validate_all_inputs()
+cli.py calls validators.validate_all_inputs()
     ↓
-validators.validate_side() raises ValueError("Side must be BUY or SELL")
+validate_price(price=None, order_type="LIMIT") raises ValueError("Price is required for LIMIT orders")
     ↓
-orders.py catches ValueError
+OrderManager catches ValueError
     ↓
-cli.py catches ValueError from place_order()
+cli.py catches Exception from place_order()
     ↓
-Format: "❌ Order failed: Side must be BUY or SELL"
+Format: "❌ Order failed: Price is required for LIMIT orders"
     ↓
 Exit with code 1
+```
+
+**Scenario 2: Network timeout (with retry)**
+```
+User places order: python cli.py place-order --symbol BTCUSDT --side BUY --type MARKET --qty 0.01
+    ↓
+client.py._retry_api_call() calls futures_create_order()
+    ↓
+BinanceRequestException (connection timeout)
+    ↓
+Attempt 1/2 fails; log warning; sleep 0.5s
+    ↓
+Attempt 2/2 fails; raise exception
+    ↓
+cli.py catches and prints: "❌ Order failed: Binance Request Error: [error details]"
+    ↓
+Exit with code 1
+```
+
+**Scenario 3: Authentication fails (no retry)**
+```
+User places order with invalid API key
+    ↓
+client.py.create_order() calls futures_create_order()
+    ↓
+BinanceAPIException [401] "API-key format invalid"
+    ↓
+cli.py catches: "❌ Order failed: Binance API Error [401]: API-key format invalid"
+    ↓
+Exit with code 1
+(No retry attempted - API error, not network error)
 ```
 
 ---
@@ -504,9 +553,9 @@ Exit with code 1
 - Type checking and range checking
 
 ### 3. **Professional Logging**
-- All requests logged with timestamps
+- All requests logged with timestamps and request IDs
 - All responses captured
-- Rotating file logs (5MB limit)
+- Rotating file logs with size limits
 - Separate DEBUG and ERROR levels
 
 ### 4. **Error Resilience**
