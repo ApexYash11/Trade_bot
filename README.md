@@ -291,6 +291,135 @@ Log rotation is configured:
 - Backup copies: 5 files
 - Old logs automatically archived
 
+### Request ID Tracking
+
+Every order operation generates a unique request ID for debugging and tracing:
+
+```
+[req_id=abc12345] Creating MARKET order - Symbol: BTCUSDT, Qty: 0.01
+[req_id=abc12345] Order created successfully - Order ID: 123456
+[req_id=abc12345] Order placed successfully - ID: 123456, Status: NEW
+```
+
+All logs for a single order operation share the same `req_id` for easy correlation and debugging.
+
+---
+
+## Design Decisions
+
+### Why Layered Architecture?
+- **Separation of Concerns**: Each layer has a single responsibility
+  - CLI layer handles user interaction
+  - Validators handle input checking
+  - OrderManager orchestrates the flow
+  - BinanceClient handles API communication
+- **Testability**: Easy to test each layer independently
+- **Maintainability**: Changes to one layer don't affect others
+- **Scalability**: Easy to add new features (e.g., new order types, new exchanges)
+
+### Why Centralized Validation?
+- **Consistency**: All inputs validated the same way
+- **User Experience**: Clear, actionable error messages
+- **Performance**: Validation before API calls saves bandwidth and rate limits
+- **Security**: Prevents invalid requests from reaching the API
+
+### Why Comprehensive Logging?
+- **Debugging**: Full request/response trace for troubleshooting
+- **Auditing**: All orders logged with timestamps and request IDs
+- **Monitoring**: Track API calls and errors over time
+- **Compliance**: Trading records available for review
+
+---
+
+## Exit Codes
+
+The bot uses standard exit codes for scripting and automation:
+
+| Code | Meaning | Example |
+|------|---------|---------|
+| 0 | Success | Order placed successfully, help displayed |
+| 1 | Failure | Validation error, API error, missing credentials |
+
+**Example (PowerShell):**
+```powershell
+python cli.py place-order --symbol BTCUSDT --side BUY --type MARKET --qty 0.01
+if ($LASTEXITCODE -eq 0) {
+    Write-Host "✅ Order succeeded"
+} else {
+    Write-Host "❌ Order failed"
+}
+```
+
+**Example (Bash):**
+```bash
+python cli.py place-order --symbol BTCUSDT --side BUY --type MARKET --qty 0.01
+if [ $? -eq 0 ]; then
+    echo "✅ Order succeeded"
+else
+    echo "❌ Order failed"
+fi
+```
+
+---
+
+## Extensibility
+
+The architecture is designed for easy expansion:
+
+### Adding New Order Types
+
+**Current:** MARKET, LIMIT
+
+**To add:** Stop-Loss, Take-Profit, OCO (One-Cancels-Other)
+
+**Implementation:**
+1. Add validation in `bot/validators.py`
+2. Update `bot/orders.py` to handle new type
+3. Add CLI option in `bot/cli.py`
+4. Update documentation
+
+### Adding New Exchanges
+
+**Current:** Binance Futures Testnet
+
+**To add:** Coinbase, Kraken, Bybit, etc.
+
+**Implementation:**
+1. Create `bot/exchanges/binance.py`, `bot/exchanges/coinbase.py`
+2. Implement common exchange interface
+3. Switch exchange in `bot/config.py`
+4. Reuse validation and order logic
+
+### Adding New Input Modes
+
+**Current:** Interactive, CLI arguments
+
+**To add:** Configuration files, configuration files, REST API server
+
+**Implementation:**
+1. Add new input handler in `bot/cli.py`
+2. Reuse existing validation and order placement logic
+3. Results already structured for multiple output formats
+
+---
+
+## Code Quality & Production Readiness
+
+This project is built to production standards:
+
+- ✅ **Type Hints** - Full type annotations throughout
+- ✅ **Docstrings** - Comprehensive documentation on all functions
+- ✅ **No Hardcoded Values** - All constants in `bot/config.py`
+- ✅ **Request ID Tracking** - Unique ID per operation for debugging
+- ✅ **Retry Logic** - Network resilience for failed API calls
+- ✅ **Structured Logging** - Readable, queryable logs
+- ✅ **Error Handling** - Graceful failure with clear messages
+- ✅ **Exit Codes** - Standard codes for integration
+- ✅ **Security** - No credentials in code or logs
+- ✅ **Testing** - Comprehensive test commands provided
+
+---
+
 ## Testnet vs Mainnet
 
 This bot is configured for **Binance Futures Testnet**:

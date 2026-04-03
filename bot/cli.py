@@ -1,5 +1,6 @@
 """
 CLI interface for trading bot.
+Handles command parsing, interactive mode, and user interaction.
 """
 
 import argparse
@@ -7,6 +8,7 @@ import sys
 from typing import Optional
 from bot.orders import OrderManager
 from bot.logging_config import logger
+from bot import config
 
 
 def format_order_summary(inputs: dict) -> str:
@@ -174,14 +176,23 @@ Examples:
 
 
 def main():
-    """Main CLI entry point."""
+    """
+    Main CLI entry point.
+    
+    Handles:
+    - Command parsing
+    - Interactive mode fallback
+    - Order placement
+    - Output formatting
+    - Error handling with proper exit codes
+    """
     parser = create_parser()
     args = parser.parse_args()
     
     # Show help if no command provided
     if not args.command:
         parser.print_help()
-        return
+        sys.exit(config.EXIT_SUCCESS)
     
     # Handle place-order command
     if args.command == 'place-order':
@@ -192,12 +203,13 @@ def main():
             # Use provided arguments
             if not all([args.symbol, args.side, args.order_type, args.qty]):
                 print("❌ Missing required arguments. Use --help for usage.")
-                sys.exit(1)
+                sys.exit(config.EXIT_FAILURE)
             
+            # Normalize inputs to uppercase
             inputs = {
-                'symbol': args.symbol,
-                'side': args.side,
-                'type': args.order_type,
+                'symbol': args.symbol.upper() if args.symbol else None,
+                'side': args.side.upper() if args.side else None,
+                'type': args.order_type.upper() if args.order_type else None,
                 'qty': args.qty,
                 'price': args.price
             }
@@ -220,12 +232,14 @@ def main():
             print(format_order_response(response))
             print(format_success_message())
             
+            sys.exit(config.EXIT_SUCCESS)
+            
         except ValueError as e:
             print(format_error_message(str(e)))
-            sys.exit(1)
+            sys.exit(config.EXIT_FAILURE)
         except Exception as e:
             print(format_error_message(str(e)))
-            sys.exit(1)
+            sys.exit(config.EXIT_FAILURE)
 
 
 if __name__ == '__main__':
