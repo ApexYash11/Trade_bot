@@ -443,6 +443,52 @@ All logs for a single order operation share the same `req_id` for easy correlati
 
 ---
 
+## Testnet Behavior
+
+### Why is Executed Qty = 0?
+
+On Binance Futures Testnet, market orders often return with `status=NEW` and `executedQty=0.0` initially because:
+
+- **Asynchronous Execution**: Testnet processes orders asynchronously on the server
+- **No Guaranteed Fills**: Testnet matching engine doesn't guarantee immediate execution
+- **Initial Response Timing**: The API response arrives before fill data is available
+
+**What happens in the code:**
+- After placing an order, the bot waits 0.5 seconds for the server to process it
+- Then queries the order details via `get_order()` to fetch actual fill data
+- If the query fails (due to timestamp sync), the initial response is used as fallback
+
+**This is expected behavior on testnet and does not indicate an error.**
+
+### Timestamp Sync Errors
+
+If you see error messages like:
+```
+Timestamp for this request was 1000ms ahead of the server's time
+```
+
+**Causes:**
+- Your system clock is ahead of the Binance testnet server
+- Network latency or NTP drift on your system
+
+**Solutions:**
+1. **Sync your system time** with NTP:
+   - **Windows**: Run `w32tm /resync` in Command Prompt (admin)
+   - **macOS/Linux**: Run `ntpdate -s time.nist.gov` (may need `sudo`)
+2. **Wait for clock to catch up**: Usually resolves within minutes
+3. **Disable timestamp verification locally** (not recommended for production)
+
+### Order Placement on Testnet
+
+- **Testnet balances** are simulated; no real assets involved
+- **Order fills** may be instant or delayed depending on server load
+- **Prices** are live market data from the actual Binance exchange
+- **Cancellations** work normally; test cancel-order functionality
+
+For more details on testnet behavior, see: https://testnet.binancefuture.com
+
+---
+
 ## Design Decisions
 
 ### Why Layered Architecture?
