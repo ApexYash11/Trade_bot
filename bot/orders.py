@@ -78,7 +78,13 @@ class OrderManager:
             logger.error(f"Order placement failed: {str(e)}")
             raise Exception(str(e))
         
-        order_id = int(response.get("orderId", 0))
+        # Validate that orderId is present in response
+        order_id_raw = response.get("orderId")
+        if not order_id_raw:
+            logger.error("Order placement response missing orderId")
+            raise Exception("Order placement failed: missing orderId in response")
+        
+        order_id = int(order_id_raw)
         
         # Brief delay to allow order execution on server
         time.sleep(0.5)
@@ -101,6 +107,7 @@ class OrderManager:
                     logger.warning(f"Could not fetch filled order details after 3 attempts: {str(e)}. Using initial response.")
         
         # Parse and structure response with actual filled data
+        # Use safe float conversion: if value is None, use 0.0
         result = {
             "success": True,
             "order_id": filled_order.get("orderId"),
@@ -108,10 +115,10 @@ class OrderManager:
             "side": filled_order.get("side"),
             "type": filled_order.get("type"),
             "status": filled_order.get("status"),
-            "quantity": float(filled_order.get("origQty", 0)),
-            "executed_qty": float(filled_order.get("executedQty", 0)),
-            "average_price": float(filled_order.get("avgPrice", 0)),
-            "price": float(filled_order.get("price", 0)),
+            "quantity": float(filled_order.get("origQty") or 0),
+            "executed_qty": float(filled_order.get("executedQty") or 0),
+            "average_price": float(filled_order.get("avgPrice") or 0),
+            "price": float(filled_order.get("price") or 0),
             "raw_response": filled_order
         }
         

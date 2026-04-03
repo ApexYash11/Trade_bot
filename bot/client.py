@@ -40,7 +40,6 @@ class BinanceClient:
             )
         
         # Initialize Client for testnet
-        # Using larger recvWindow to handle clock differences with server
         self.client = Client(
             api_key=api_key,
             api_secret=api_secret,
