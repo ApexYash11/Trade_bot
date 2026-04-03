@@ -40,10 +40,12 @@ class BinanceClient:
             )
         
         # Initialize Client for testnet
+        # Using larger recvWindow to handle clock differences with server
         self.client = Client(
             api_key=api_key,
             api_secret=api_secret,
-            testnet=True  # Use testnet
+            testnet=True,  # Use testnet
+            requests_params={'timeout': 10}
         )
         
         logger.debug("Binance Futures Testnet client initialized")
@@ -169,6 +171,36 @@ class BinanceClient:
         
         # All retries exhausted
         raise last_exception if last_exception else Exception("Unknown error")
+    
+    def get_order(self, symbol: str, order_id: int) -> dict:
+        """
+        Get order details by order ID.
+        
+        Fetches current order status including filled quantity and average price.
+        Useful for getting actual execution data after order placement.
+        
+        Args:
+            symbol: Trading symbol (e.g., BTCUSDT)
+            order_id: Order ID to query
+            
+        Returns:
+            Order details including executedQty and avgPrice
+            
+        Raises:
+            Exception: If API call fails
+        """
+        request_id = self._generate_request_id()
+        req_tag = f"[req_id={request_id}]"
+        
+        try:
+            logger.debug(f"{req_tag} Fetching order details - Symbol: {symbol}, Order ID: {order_id}")
+            response = self.client.futures_get_order(symbol=symbol, orderId=order_id)
+            logger.debug(f"{req_tag} Order details retrieved")
+            return response
+        except Exception as e:
+            error_msg = f"{req_tag} Error fetching order details: {str(e)}"
+            logger.error(error_msg)
+            raise Exception(error_msg)
     
     def get_account_balance(self) -> dict:
         """

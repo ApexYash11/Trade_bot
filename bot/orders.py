@@ -2,6 +2,7 @@
 Order placement logic for trading bot.
 """
 
+import time
 from typing import Union, Optional
 from bot.client import BinanceClient
 from bot.validators import validate_all_inputs
@@ -77,21 +78,43 @@ class OrderManager:
             logger.error(f"Order placement failed: {str(e)}")
             raise Exception(str(e))
         
-        # Parse and structure response
+        order_id = int(response.get("orderId", 0))
+        
+        # Brief delay to allow order execution on server
+        time.sleep(0.5)
+        
+        # Fetch actual filled data with retry
+        filled_order = response
+        for retry in range(3):
+            try:
+                filled_order = self.client.get_order(
+                    symbol=validated["symbol"],
+                    order_id=order_id
+                )
+                logger.debug(f"Successfully fetched filled order details on attempt {retry + 1}")
+                break
+            except Exception as e:
+                if retry < 2:
+                    logger.debug(f"Attempt {retry + 1} to fetch order details failed: {str(e)}. Retrying...")
+                    time.sleep(0.3)
+                else:
+                    logger.warning(f"Could not fetch filled order details after 3 attempts: {str(e)}. Using initial response.")
+        
+        # Parse and structure response with actual filled data
         result = {
             "success": True,
-            "order_id": response.get("orderId"),
-            "symbol": response.get("symbol"),
-            "side": response.get("side"),
-            "type": response.get("type"),
-            "status": response.get("status"),
-            "quantity": float(response.get("origQty", 0)),
-            "executed_qty": float(response.get("executedQty", 0)),
-            "average_price": float(response.get("avgPrice", 0)),
-            "price": float(response.get("price", 0)),
-            "raw_response": response
+            "order_id": filled_order.get("orderId"),
+            "symbol": filled_order.get("symbol"),
+            "side": filled_order.get("side"),
+            "type": filled_order.get("type"),
+            "status": filled_order.get("status"),
+            "quantity": float(filled_order.get("origQty", 0)),
+            "executed_qty": float(filled_order.get("executedQty", 0)),
+            "average_price": float(filled_order.get("avgPrice", 0)),
+            "price": float(filled_order.get("price", 0)),
+            "raw_response": filled_order
         }
         
-        logger.info(f"Order placed successfully - ID: {result['order_id']}, Status: {result['status']}")
+        logger.info(f"Order placed successfully - ID: {result['order_id']}, Status: {result['status']}, Filled: {result['executed_qty']} @ {result['average_price']}")
         
         return result
