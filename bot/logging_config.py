@@ -7,6 +7,7 @@ import logging
 import logging.handlers
 import os
 from bot import config
+from bot.logging_filter import RedactingFilter
 
 
 def setup_logger(log_file: str = config.LOG_FILE_PATH) -> logging.Logger:
@@ -48,6 +49,11 @@ def setup_logger(log_file: str = config.LOG_FILE_PATH) -> logging.Logger:
     # Console handler for errors only
     console_handler = logging.StreamHandler()
     console_handler.setLevel(logging.ERROR)
+    
+    # Add redacting filter to both handlers to mask sensitive data
+    redacting_filter = RedactingFilter()
+    file_handler.addFilter(redacting_filter)
+    console_handler.addFilter(redacting_filter)
     
     # Structured formatter - consistent format across all logs
     formatter = logging.Formatter(

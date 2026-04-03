@@ -4,15 +4,80 @@ A production-quality Python CLI for placing orders on **Binance Futures Testnet*
 
 ## Features
 
-- ✅ **Market Orders** - Instant execution at current market price
-- ✅ **Limit Orders** - Execute at specified price
-- ✅ **BUY/SELL** - Both order directions supported
-- ✅ **Interactive Mode** - Friendly CLI prompts for all parameters
-- ✅ **CLI Arguments** - Direct order placement via command line
-- ✅ **Input Validation** - Clear error messages for invalid inputs
-- ✅ **Detailed Logging** - Request/response logging to `logs/bot.log`
-- ✅ **Professional Output** - Formatted tables and status indicators
-- ✅ **Error Handling** - Comprehensive exception handling and recovery
+- [x] **Market Orders** - Instant execution at current market price
+- [x] **Limit Orders** - Execute at specified price
+- [x] **BUY/SELL** - Both order directions supported
+- [x] **Interactive Mode** - Friendly CLI prompts for all parameters
+- [x] **CLI Arguments** - Direct order placement via command line
+- [x] **Input Validation** - Clear error messages for invalid inputs
+- [x] **Detailed Logging** - Request/response logging to `logs/bot.log`
+- [x] **Professional Output** - Formatted tables and status indicators
+- [x] **Error Handling** - Comprehensive exception handling and recovery
+- [x] **Secret Redaction** - Automatically masks API keys in logs
+- [x] **Live Symbol Validation** - Validates symbols against Binance API
+- [x] **Reproducible Installs** - requirements.lock for exact versions
+
+## Architecture Diagram
+
+```mermaid
+graph TD
+    A[User Input] -->|Interactive or CLI| B[CLI Layer]
+    B -->|Arguments| C[Validation Layer]
+    C -->|Valid Inputs| D[Order Manager]
+    C -->|Invalid| E[Error Message]
+    D -->|Place Order| F[Binance Client]
+    F -->|Retry Logic| G[Binance API]
+    G -->|Response| F
+    F -->|Success| H[Format Response]
+    F -->|Error| I[Log Error]
+    H --> J[Display Result]
+    I --> E
+    K[Logging & Redaction] -.-> F
+    K -.-> H
+    L[Symbol Validator] -.-> C
+```
+
+## Order Placement Flow
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant CLI
+    participant Validators
+    participant OrderManager
+    participant BinanceClient
+    participant BinanceAPI
+    
+    User->>CLI: place-order [options]
+    CLI->>CLI: Parse arguments or interactive input
+    CLI->>Validators: Validate inputs
+    
+    alt Valid
+        Validators-->CLI: Return validated inputs
+        CLI->>CLI: Display order summary
+        CLI->>OrderManager: place_order()
+        OrderManager->>Validators: Validate again
+        OrderManager->>BinanceClient: create_order()
+        BinanceClient->>BinanceAPI: POST /fapi/v1/order
+        
+        alt Success
+            BinanceAPI-->BinanceClient: Order response
+            BinanceClient->>OrderManager: Return result
+            OrderManager->>CLI: Success dict
+            CLI->>CLI: Format response
+            CLI->>User: Display success + Order ID
+        else Failure
+            BinanceAPI-->BinanceClient: Error response
+            BinanceClient->>BinanceClient: Retry logic (if network error)
+            BinanceClient->>OrderManager: Exception
+            OrderManager->>CLI: Exception
+            CLI->>User: Error message
+        end
+    else Invalid
+        Validators-->CLI: ValueError
+        CLI->>User: Error message
+    end
+```
 
 ## Project Structure
 
@@ -23,13 +88,24 @@ trading_bot/
 │   ├── cli.py                   # CLI interface with argparse
 │   ├── client.py                # Binance Futures Testnet wrapper
 │   ├── orders.py                # Order placement logic
-│   ├── validators.py             # Input validation
-│   └── logging_config.py        # Logging setup
+│   ├── validators.py            # Input validation
+│   ├── config.py                # Centralized configuration
+│   ├── logging_config.py        # Logging setup
+│   ├── logging_filter.py        # Secret redaction
+│   └── symbol_validator.py      # Live symbol validation
+├── docs/
+│   ├── ARCHITECTURE.md          # Technical architecture
+│   ├── DEPLOYMENT.md            # Deployment guide
+│   ├── TESTING.md               # Testing procedures
+│   ├── PERFORMANCE.md           # Performance tuning
+│   ├── ENHANCEMENTS.md          # Optional features
+│   └── CONTRIBUTING.md          # Contributing guide
 ├── logs/
 │   └── bot.log                  # Log file (auto-created)
 ├── cli.py                       # Entry point
 ├── .env                         # API credentials (not in git)
 ├── requirements.txt             # Python dependencies
+├── requirements.lock            # Exact versions (production)
 └── README.md                    # This file
 ```
 
@@ -76,7 +152,7 @@ API_SECRET=your_api_secret_here
 3. Create new key
 4. Copy API Key and Secret Key to `.env`
 
-> ⚠️ **Important**: Never commit `.env` file to version control. Keep credentials secure.
+> [WARNING] **Important**: Never commit `.env` file to version control. Keep credentials secure.
 
 ## Usage
 
@@ -120,7 +196,7 @@ Status          : FILLED
 Executed Qty    : 0.01
 Average Price   : 59850.00
 
-✅ Order placed successfully
+[SUCCESS] Order placed successfully
 ```
 
 ### Command Line Mode
@@ -177,7 +253,7 @@ python cli.py place-order --symbol BTCUSDT --side INVALID
 ```
 Output:
 ```
-❌ Order failed: Side must be BUY or SELL
+[ERROR] Order failed: Side must be BUY or SELL
 ```
 
 ## Examples
@@ -208,7 +284,7 @@ python cli.py place-order --symbol BTCUSDT --side BUY --type LIMIT --qty 0.01
 ```
 Output (missing price):
 ```
-❌ Order failed: Price is required for LIMIT orders
+[ERROR] Order failed: Price is required for LIMIT orders
 ```
 
 ## Test Commands
@@ -231,37 +307,37 @@ Expected: Shows all available options for place-order command
 ```bash
 python cli.py place-order --symbol BTCUSDT --side INVALID --type MARKET --qty 0.01
 ```
-Expected: `❌ Order failed: Side must be BUY or SELL`
+Expected: `[ERROR] Order failed: Side must be BUY or SELL`
 
 ### 4. Test Input Validation (Missing Price for LIMIT)
 ```bash
 python cli.py place-order --symbol BTCUSDT --side BUY --type LIMIT --qty 0.01
 ```
-Expected: `❌ Order failed: Price is required for LIMIT orders`
+Expected: `[ERROR] Order failed: Price is required for LIMIT orders`
 
 ### 5. Test Invalid Symbol
 ```bash
 python cli.py place-order --symbol BTC --side BUY --type MARKET --qty 0.01
 ```
-Expected: `❌ Order failed: Symbol must end with USDT (e.g., BTCUSDT)`
+Expected: `[ERROR] Order failed: Symbol must end with USDT (e.g., BTCUSDT)`
 
 ### 6. Test Invalid Quantity
 ```bash
 python cli.py place-order --symbol BTCUSDT --side BUY --type MARKET --qty -0.01
 ```
-Expected: `❌ Order failed: Quantity must be positive`
+Expected: `[ERROR] Order failed: Quantity must be positive`
 
 ### 7. Test Valid MARKET Order (requires API keys)
 ```bash
 python cli.py place-order --symbol BTCUSDT --side BUY --type MARKET --qty 0.01
 ```
-Expected: ✅ Order placed successfully with Order ID
+Expected: [SUCCESS] Order placed successfully with Order ID
 
 ### 8. Test Valid LIMIT Order (requires API keys)
 ```bash
 python cli.py place-order --symbol ETHUSDT --side SELL --type LIMIT --qty 1.0 --price 2500
 ```
-Expected: ✅ Order placed successfully with Order ID or API error (if testnet down)
+Expected: [SUCCESS] Order placed successfully with Order ID or API error (if testnet down)
 
 ### 9. Test Interactive Mode
 ```bash
@@ -344,9 +420,9 @@ The bot uses standard exit codes for scripting and automation:
 ```powershell
 python cli.py place-order --symbol BTCUSDT --side BUY --type MARKET --qty 0.01
 if ($LASTEXITCODE -eq 0) {
-    Write-Host "✅ Order succeeded"
+    Write-Host "[SUCCESS] Order succeeded"
 } else {
-    Write-Host "❌ Order failed"
+    Write-Host "[ERROR] Order failed"
 }
 ```
 
@@ -354,9 +430,9 @@ if ($LASTEXITCODE -eq 0) {
 ```bash
 python cli.py place-order --symbol BTCUSDT --side BUY --type MARKET --qty 0.01
 if [ $? -eq 0 ]; then
-    echo "✅ Order succeeded"
+    echo "[SUCCESS] Order succeeded"
 else
-    echo "❌ Order failed"
+    echo "[ERROR] Order failed"
 fi
 ```
 
@@ -407,16 +483,16 @@ The architecture is designed for easy expansion:
 
 This project is built to production standards:
 
-- ✅ **Type Hints** - Full type annotations throughout
-- ✅ **Docstrings** - Comprehensive documentation on all functions
-- ✅ **No Hardcoded Values** - All constants in `bot/config.py`
-- ✅ **Request ID Tracking** - Unique ID per operation for debugging
-- ✅ **Retry Logic** - Network resilience for failed API calls
-- ✅ **Structured Logging** - Readable, queryable logs
-- ✅ **Error Handling** - Graceful failure with clear messages
-- ✅ **Exit Codes** - Standard codes for integration
-- ✅ **Security** - No credentials in code or logs
-- ✅ **Testing** - Comprehensive test commands provided
+- [x] **Type Hints** - Full type annotations throughout
+- [x] **Docstrings** - Comprehensive documentation on all functions
+- [x] **No Hardcoded Values** - All constants in `bot/config.py`
+- [x] **Request ID Tracking** - Unique ID per operation for debugging
+- [x] **Retry Logic** - Network resilience for failed API calls
+- [x] **Structured Logging** - Readable, queryable logs
+- [x] **Error Handling** - Graceful failure with clear messages
+- [x] **Exit Codes** - Standard codes for integration
+- [x] **Security** - No credentials in code or logs
+- [x] **Testing** - Comprehensive test commands provided
 
 ---
 
@@ -434,7 +510,7 @@ To use **Mainnet** (real trading):
    ```python
    base_url="https://fapi.binance.com"  # Change from testnet
    ```
-3. ⚠️ **BE CAREFUL** - Real money at risk
+3. [WARNING] **BE CAREFUL** - Real money at risk
 
 ## Error Handling
 
@@ -513,6 +589,16 @@ This project is provided as-is for educational and testing purposes.
 ## Support
 
 For issues with:
-- **Bot code** - Check issue tracker
+- **Bot code** - Check issue tracker or see [docs/](docs/)
 - **Binance API** - See https://binance-docs.github.io/apidocs/
 - **python-binance** - See https://github.com/sammchardy/python-binance
+
+## Documentation
+
+Complete documentation available in [docs/](docs/) folder:
+- [ARCHITECTURE.md](docs/ARCHITECTURE.md) - System design and components
+- [DEPLOYMENT.md](docs/DEPLOYMENT.md) - Deployment instructions
+- [TESTING.md](docs/TESTING.md) - Test cases and procedures
+- [PERFORMANCE.md](docs/PERFORMANCE.md) - Performance tuning
+- [ENHANCEMENTS.md](docs/ENHANCEMENTS.md) - Optional features
+- [CONTRIBUTING.md](docs/CONTRIBUTING.md) - Contributing guidelines

@@ -2,15 +2,16 @@
 Input validation for trading bot.
 """
 
-from typing import Union
+from typing import Union, Optional
 
 
-def validate_symbol(symbol: str) -> str:
+def validate_symbol(symbol: str, live_validation: bool = False) -> str:
     """
     Validate trading symbol format.
     
     Args:
         symbol: Trading symbol (e.g., BTCUSDT)
+        live_validation: Whether to check symbol against live Binance API (default False)
         
     Returns:
         Valid symbol
@@ -31,6 +32,23 @@ def validate_symbol(symbol: str) -> str:
     
     if len(symbol) < 5:
         raise ValueError("Symbol format invalid (e.g., BTCUSDT)")
+    
+    # Optional: Validate against live Binance API
+    if live_validation:
+        try:
+            from bot.symbol_validator import symbol_validator
+            if not symbol_validator.validate_symbol_exists(symbol):
+                raise ValueError(
+                    f"Symbol {symbol} not found on Binance or not actively trading. "
+                    "Check symbol availability at https://testnet.binancefuture.com"
+                )
+        except ImportError:
+            # If symbol_validator module not available, skip live validation
+            pass
+        except Exception as e:
+            # Log the error but don't fail - fall back to format-only validation
+            import logging
+            logging.warning(f"Live validation failed, using format-only check: {str(e)}")
     
     return symbol
 
